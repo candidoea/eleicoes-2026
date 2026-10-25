@@ -22,8 +22,15 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
+import os
+import threading
+
+os.environ.setdefault("OMP_NUM_THREADS", "1")  # LightGBM/OpenMP em várias threads do Streamlit derruba o processo no Windows
+
 import numpy as np
 import pandas as pd
+
+_LOCK_ML = threading.Lock()  # o LightGBM nunca roda em duas threads ao mesmo tempo
 
 MODELO = Path(__file__).parent / "modelo"
 REGIAO = {"AC": 1, "AM": 1, "AP": 1, "PA": 1, "RO": 1, "RR": 1, "TO": 1, "AL": 2, "BA": 2, "CE": 2, "MA": 2,
@@ -135,11 +142,16 @@ class Modelo:
         self.uf = _efeito_uf(res, d["uf"].to_numpy(), w, self.kappa_frac * max(w.sum(), 1))
         self.ml = None
         if usar_ml and len(d) >= 400:
-            import lightgbm as lgb
-            r2 = res - d["uf"].map(self.uf).fillna(0).to_numpy()
-            self.ml = lgb.LGBMRegressor(n_estimators=150, learning_rate=0.05, num_leaves=15, min_child_samples=40,
-                                        subsample=0.8, subsample_freq=1, colsample_bytree=0.8, verbose=-1)
-            self.ml.fit(d[self._feats(a)], r2, sample_weight=w)
+            try:
+                import lightgbm as lgb
+                r2 = res - d["uf"].map(self.uf).fillna(0).to_numpy()
+                ml = lgb.LGBMRegressor(n_estimators=150, learning_rate=0.05, num_leaves=15, min_child_samples=40,
+                                       subsample=0.8, subsample_freq=1, colsample_bytree=0.8, verbose=-1, n_jobs=1)
+                with _LOCK_ML:
+                    ml.fit(d[self._feats(a)].to_numpy(dtype=float), r2, sample_weight=w)
+                self.ml = ml
+            except Exception:  # falha do LightGBM não derruba a projeção: segue só com a transferência
+                self.ml = None
         return self
 
     def _feats(self, a):
@@ -149,7 +161,11 @@ class Modelo:
         p = d["s_" + a].to_numpy() + self.gama + d[self.cols].to_numpy() @ self.beta
         p = p + d["uf"].map(self.uf).fillna(0).to_numpy()
         if self.ml is not None:
-            p = p + self.ml.predict(d[self._feats(a)])
+            try:
+                with _LOCK_ML:
+                    p = p + self.ml.predict(d[self._feats(a)].to_numpy(dtype=float))
+            except Exception:
+                self.ml = None
         return np.clip(p, 0.01, 0.99)
 
 
