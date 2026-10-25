@@ -1,0 +1,11 @@
+# dados baixados do TSE e gerados durante a apuração
+dados/
+snapshots/
+# pacotes e temporários locais
+*.zip
+_to_delete/
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+*.tmp

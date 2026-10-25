@@ -1,0 +1,2 @@
+# opcional: histórico no SQL Server (Windows)
+pyodbc>=5.0
