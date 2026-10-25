@@ -328,7 +328,7 @@ def comparacao(cargo: int, uf: str | None, res, vertical: bool = False):
     proj["eleito"], proj["situacao"] = False, ""
     proj = proj.sort_values("pct", ascending=False)
     html_real = ui.cards_html(res.candidatos, vagas=1, maximo=2, apurando=not res.final)
-    html_proj = ui.cards_html(proj, vagas=1, maximo=2, apurando=True).replace(" votos</div>", " votos projetados</div>")
+    html_proj = ui.cards_html(proj, vagas=1, maximo=2, apurando=True).replace(" votos</div>", " votos projetados</div>").replace(">LIDERA<", ">VENCE<")
     lider = proj.iloc[0]
     chance = pj.prob_a if lider["partido"] == a else 1 - pj.prob_a
     modelo_txt = ("transferência do 1º turno + LightGBM" if pj.usa_ml else
@@ -638,7 +638,7 @@ def visao_projecao():
     cand = pd.DataFrame(linhas).sort_values("pct", ascending=False)
     c1, c2 = st.columns([3, 2])
     with c1:
-        st.markdown(ui.cards_html(cand, vagas=1, maximo=2, apurando=True).replace(" votos</div>", " votos projetados</div>"),
+        st.markdown(ui.cards_html(cand, vagas=1, maximo=2, apurando=True).replace(" votos</div>", " votos projetados</div>").replace(">LIDERA<", ">VENCE<"),
                     unsafe_allow_html=True)
     with c2:
         k = st.columns(2)
