@@ -9,3 +9,7 @@ __pycache__/
 .venv/
 .ipynb_checkpoints/
 *.tmp
+
+# análises locais e saídas regeneráveis do estudo
+_analise/
+estudo/resultados/

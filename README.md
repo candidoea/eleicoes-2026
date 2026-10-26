@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>Painel em tempo (quase) real das eleições brasileiras com projeção do 2º turno por aprendizado de máquina</b><br>
-  Dados abertos do TSE · Streamlit · mapas municipais · laboratório de validação
+  Dados abertos do TSE · Streamlit · mapas municipais · laboratório de validação · artigo científico da eleição
 </p>
 
 <p align="center">
@@ -22,6 +22,8 @@
 
 Painel não oficial, sem vínculo com a Justiça Eleitoral. Usa apenas os arquivos públicos de divulgação de resultados do TSE e roda em qualquer máquina com Python.
 
+**Artigo científico da eleição:** [`estudo/Eleicoes_2026_artigo_cientifico.pdf`](estudo/Eleicoes_2026_artigo_cientifico.pdf) (também em `.docx`): avaliação da projeção na noite do 2º turno, fluxos de voto entre turnos, abstenção e governadores.
+
 <p align="center">
   <img src="docs/img/comparacao.png" alt="Apuração oficial e projeção do modelo lado a lado" width="90%">
 </p>
@@ -36,7 +38,7 @@ Painel não oficial, sem vínculo com a Justiça Eleitoral. Usa apenas os arquiv
 | Projeção | Estima o resultado final enquanto o TSE libera os municípios fora de ordem, com intervalo de 90% e chance de vitória |
 | Comparação | Projeção e apuração oficial lado a lado, na mesma página, para Presidente e para cada 2º turno de governador |
 | Laboratório | Erro municipal fora da amostra, projeção x resultado final e reexecução da noite de 2022 |
-| Robustez | Cache em disco, requisições condicionais, cache negativo para 404 e limite de requisições (o TSE bloqueia IP por excesso) |
+| Robustez | Cache em disco, requisições condicionais, cache negativo para 404 e limite de requisições (o TSE bloqueia IP por excesso); uma falha do LightGBM não derruba a projeção |
 
 ## A projeção funciona?
 
@@ -54,6 +56,26 @@ A noite do 2º turno de 2022 (Lula x Bolsonaro) foi reexecutada liberando os mun
 | 70% | 0,6 pp | 0,0 pp |
 
 > Desempenho passado não garante o mesmo erro em outra eleição: em 2026 os candidatos eliminados no 1º turno são outros, e a transferência é aprendida durante a apuração.
+
+## E na noite de 2026?
+
+O 1º turno terminou com Flávio Bolsonaro à frente (47,0% contra 45,2% dos válidos nos municípios); Lula venceu o 2º turno com 51,79%. A noite de 25/10 foi reexecutada com os registros do próprio painel, na ordem real de chegada dos 5.571 municípios.
+
+<p align="center">
+  <img src="estudo/fig/f1_noite.png" alt="Parcial e projeção ao longo da apuração de 2026" width="80%">
+</p>
+
+| Pergunta | Resultado |
+|---|---|
+| Quando acertou o vencedor? | No primeiro dado, às 19h06, com 0,2% contado e 99,1% de chance; nunca mais mudou |
+| E a parcial do TSE? | Mostrou Flávio na frente das 19h50 às 20h30, entre 15% e 50% contado |
+| Erro médio | Projeção 0,48 pp, parcial 1,31 pp (do primeiro dado a 99,5% contado) |
+| Origem do erro | Quase toda da transferência aprendida nos primeiros municípios (menores e menos escolarizados); o comparecimento errou 0,04 pp |
+| LightGBM | Desligado na noite por uma falha no Windows (já corrigida); com ele, o erro entre 20% e 96% contado cairia de 0,33 para 0,14 pp |
+| Intervalo de 90% | Otimista: cobriu o resultado em 46% dos instantes, porque não mede o viés de quem chega primeiro |
+| Governadores | Vencedor certo cedo nas 6 disputas; erro de margem grande em TO e ES, com poucos municípios e mudança forte entre turnos |
+
+Melhorias apontadas pelo estudo (seção 5.3 do artigo): termo de viés de ordem de chegada no intervalo, pós-estratificação dos primeiros municípios, retenção dos finalistas estimada e zonas eleitorais no DF.
 
 ## Como o modelo projeta
 
@@ -93,6 +115,7 @@ python -m streamlit run app.py
 | 1º turno | `python coletor.py --ambiente oficial --sem-banco` |
 | Sem rede ou fora da noite de eleição | `python coletor.py --demo --uma-vez --sem-banco` e ative o "Modo demonstração" no painel |
 | Ensaio com a noite de 2022 | instruções no topo de `ferramentas/simular_2turno.py` |
+| Exportar a noite gravada no SQL Server | `python ferramentas/exportar_snapshots.py` (gera o parquet usado no estudo) |
 | Projeção mais rápida | `python coletor.py --intervalo-mun 120 --rps 60` |
 | Histórico no SQL Server (Windows) | `pip install -r requirements-banco.txt` e rode o coletor sem `--sem-banco` |
 
@@ -116,6 +139,20 @@ TSE (resultados.tse.jus.br) ──► coletor.py ──► dados/cache/*.json �
 | `app.py`, `ui.py`, `mapas.py`, `geo.py` | Painel, cartões, mapas e malhas |
 | `banco.py`, `sql/` | Histórico opcional no SQL Server |
 | `modelo/` | Bases do 1º turno de 2026 e da noite de 2022 (geradas por `ferramentas/gerar_base_projecao.py`) |
+| `estudo/` | Artigo científico, dados da noite, scripts de reexecução e análise e figuras |
+
+## Reproduzir o estudo
+
+Os dados de entrada ficam em `estudo/dados/` (resultado municipal do 2º turno, perfil do eleitorado por município, registros da noite e histórico das projeções). Os scripts rodam na raiz do repositório, em ordem:
+
+```bash
+pip install -r requirements.txt statsmodels scipy
+python estudo/scripts/01_reexecucao.py   # reexecuta a noite: Presidente e 6 governadores (~1 h; --parte/--partes divide entre processos)
+python estudo/scripts/02_fluxos.py       # matriz de transição 1º -> 2º turno com bootstrap
+python estudo/scripts/03_perfil.py       # abstenção, viradas, quintis e regressões de perfil
+python estudo/scripts/04_figuras.py      # figuras em estudo/fig
+npm install docx && node estudo/scripts/05_artigo.js   # opcional: regenera o .docx em estudo/resultados
+```
 
 ## Fonte e códigos
 
